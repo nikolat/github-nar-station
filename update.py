@@ -1,5 +1,7 @@
 import re
 import datetime
+import shutil
+import os
 import zoneinfo
 import requests
 import yaml
@@ -28,6 +30,7 @@ if __name__ == '__main__':
 		responses.append(response)
 		result = pattern.search(response.headers['link']) if 'link' in response.headers else None
 	entries = []
+	authors = []
 	for response in responses:
 		for item in response.json()['items']:
 			types = [t.replace('ukagaka-', '') for t in item['topics'] if 'ukagaka-' in t]
@@ -73,13 +76,28 @@ if __name__ == '__main__':
 				'readme': readme
 			}
 			entries.append(entry)
+			if item['owner']['login'] not in authors:
+				authors.append(item['owner']['login'])
 	env = Environment(loader=FileSystemLoader('./templates', encoding='utf8'), autoescape=True)
 	data = {
 		'entries': entries,
 		'config': config
 	}
+	shutil.rmtree('docs/author/', ignore_errors=True)
+	os.mkdir('docs/author/')
 	for filename in ['index.html', 'rss2.xml']:
 		template = env.get_template(filename)
 		rendered = template.render(data)
 		with open(f'docs/{filename}', 'w', encoding='utf-8') as f:
 			f.write(rendered + '\n')
+	for author in authors:
+		os.mkdir(f'docs/author/{author}/')
+		data = {
+			'entries': [e for e in entries if e['author'] == author],
+			'config': config
+		}
+		for filename in ['index.html', 'rss2.xml']:
+			template = env.get_template(f'author/{filename}')
+			rendered = template.render(data)
+			with open(f'docs/author/{author}/{filename}', 'w', encoding='utf-8') as f:
+				f.write(rendered + '\n')
