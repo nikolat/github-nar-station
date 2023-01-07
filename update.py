@@ -15,7 +15,11 @@ if __name__ == '__main__':
 	with open(config_filename, encoding='utf-8') as file:
 		config = yaml.safe_load(file)
 	url = 'https://api.github.com/search/repositories'
-	headers = {'User-Agent': 'Mozilla/1.0 (Win3.1)'}
+	headers = {
+		'Accept': 'application/vnd.github+json',
+		'X-GitHub-Api-Version': '2022-11-28',
+		'User-Agent': 'Mozilla/1.0 (Win3.1)'
+	}
 	payload = {'q': config['search_query'], 'sort': 'updated'}
 	responses = []
 	response = requests.get(url, params=payload, headers=headers)
@@ -56,8 +60,24 @@ if __name__ == '__main__':
 			else:
 				readme_url = f'https://raw.githubusercontent.com/{item["full_name"]}/{item["default_branch"]}/readme.txt'
 			response = requests.get(readme_url)
-			response.encoding = response.apparent_encoding
-			readme = response.text
+			try:
+				response.raise_for_status()
+				response.encoding = response.apparent_encoding
+				readme = response.text
+			except requests.HTTPError as e:
+				readme_url = None
+				url = f'https://api.github.com/repos/{item["full_name"]}/readme'
+				response = requests.get(url, headers=headers)
+				if response.status_code == requests.codes.ok:
+					r_item = response.json()
+					if 'download_url' in r_item:
+						readme_url = r_item['download_url']
+				if readme_url:
+					response = requests.get(readme_url)
+					response.encoding = response.apparent_encoding
+					readme = response.text
+				else:
+					readme = 'readme.txt not found'
 			entry = {
 				'id': item['full_name'].replace('/', '_'),
 				'title': item['name'],
